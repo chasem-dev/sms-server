@@ -120,17 +120,24 @@ static void infoTests()
 	putStr(p, "squid-race");
 	p.push_back(1);
 	putStr(p, "2026.10.20-beta.8cedf48");
-	p.push_back(1); // drift, and the rest, which the server doesn't read
+	p.push_back(1); // drift
+	putStr(p, "2026.10.18");
+	putStr(p, "0.1.63");
+	p.push_back(0), p.push_back(0); // the least mod API, which the server doesn't read
 	GameInfo info;
 	CHECK(readInfo(p.data(), p.size(), 99, &info));
 	CHECK(info.players == 1 && info.maxPlayers == 7 && info.open && info.build == "8cedf488a093");
 	CHECK(info.status == "Squid Race: waiting for players (1 of 2)" && info.protocol == 2);
 	CHECK(info.mode == "squid-race" && info.server && info.version == "2026.10.20-beta.8cedf48");
+	CHECK(info.drift && info.minVersion == "2026.10.18" && info.minLauncher == "0.1.63");
 	CHECK(!readInfo(p.data(), p.size(), 98, &info));  // another probe's answer
 	CHECK(!readInfo(p.data(), 20, 99, &info));         // cut short
 	// an older game's answer stops after the status
 	std::vector<uint8_t> old(p.begin(), p.begin() + 11 + 3 + 1 + 12 + 1 + 10 + 1 + 40);
-	CHECK(readInfo(old.data(), old.size(), 99, &info) && info.mode.empty() && info.version.empty());
+	CHECK(readInfo(old.data(), old.size(), 99, &info) && info.mode.empty() && info.version.empty() && !info.drift);
+	// a game that says its version but not whom it takes
+	std::vector<uint8_t> middle(p.begin(), p.begin() + 79 + 2 + 11 + 1 + 24);
+	CHECK(readInfo(middle.data(), middle.size(), 99, &info) && info.version == "2026.10.20-beta.8cedf48" && !info.drift);
 }
 
 static void punchTests()

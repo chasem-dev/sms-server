@@ -131,7 +131,8 @@ bool readInfo(const uint8_t* packet, size_t size, uint32_t nonce, GameInfo* info
 	if (r.at + 2 <= size)
 		i.protocol = r.u16();
 	if (r.at < size) {
-		// a newer game's: its mode, whether it is a server, its version (and whom it takes, unread here)
+		// a newer game's: its mode, whether it is a server, its version, then whom it takes (whether other
+		// builds of its protocol may join, the oldest game and launcher versions); what was read stands
 		Reader rest = r;
 		std::string mode = rest.str();
 		const bool server = rest.u8() == 1;
@@ -140,6 +141,14 @@ bool readInfo(const uint8_t* packet, size_t size, uint32_t nonce, GameInfo* info
 			i.mode = mode;
 			i.server = server;
 			i.version = version;
+			const bool drift = rest.u8() == 1;
+			std::string minVersion = rest.str();
+			std::string minLauncher = rest.str();
+			if (rest.ok) {
+				i.drift = drift;
+				i.minVersion = minVersion;
+				i.minLauncher = minLauncher;
+			}
 		}
 	}
 	if (i.maxPlayers < 1 || i.maxPlayers > 8 || i.players > i.maxPlayers)

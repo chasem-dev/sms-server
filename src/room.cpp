@@ -303,7 +303,10 @@ void Room::State::sendHello()
 	ws->sendText("{\"type\":\"hello\",\"candidates\":" + list + ",\"name\":" + quote(o.name) +
 	             ",\"build\":" + quote(info.build) + ",\"version\":" + quote(info.version) +
 	             ",\"launcher\":\"\",\"protocol\":" + std::to_string(info.protocol) +
-	             ",\"public\":" + (o.isPublic ? "true" : "false") + ",\"mode\":" + quote(info.mode) + "}");
+	             ",\"public\":" + (o.isPublic ? "true" : "false") + ",\"mode\":" + quote(info.mode) +
+	             // whom the game takes, so launchers can tell from the list and the room code whether they can join
+	             ",\"versions\":" + (info.drift ? "\"drift\"" : "\"exact\"") + ",\"minVersion\":" + quote(info.minVersion) +
+	             ",\"minLauncher\":" + quote(info.minLauncher) + "}");
 }
 
 void Room::State::fromServer(const WsEvent& e, int64_t t)

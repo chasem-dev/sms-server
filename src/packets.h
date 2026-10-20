@@ -35,6 +35,9 @@ struct GameInfo {
 	std::string mode;    // its game mode ("squid-race"), '' playing together
 	bool server = false; // a dedicated server
 	std::string version; // the game's version
+	// whom it takes: other builds of its protocol (drift) or its own only, and the oldest versions
+	bool drift = false;
+	std::string minVersion, minLauncher;
 };
 bool readInfo(const uint8_t* packet, size_t size, uint32_t nonce, GameInfo* info);
 
