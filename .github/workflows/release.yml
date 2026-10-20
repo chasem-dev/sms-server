@@ -48,7 +48,10 @@ jobs:
               version="$(date -u +%Y.%m.%d)-beta.${game:0:7}"; tag=beta
             fi
             [[ -n "$game" ]] || { echo "::warning::no $channel game found"; continue; }
-            if ! gh api "repos/$GAME/contents/CMakeLists.txt?ref=$game" --jq .content | base64 -d | grep -q SMS_SERVER_DIR; then
+            # read whole before searching: grep -q stops reading at a match, and with pipefail base64's
+            # broken pipe would make that a failure
+            cmakelists=$(gh api "repos/$GAME/contents/CMakeLists.txt?ref=$game" --jq .content | base64 -d)
+            if ! grep -q SMS_SERVER_DIR <<<"$cmakelists"; then
               echo "::notice::the $channel game ${game:0:7} can't build a server yet (no SMS_SERVER_DIR)"; continue
             fi
             body=$(gh release view "$tag" -R "$GITHUB_REPOSITORY" --json body --jq .body 2>/dev/null || true)
