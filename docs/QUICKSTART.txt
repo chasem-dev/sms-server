@@ -1,0 +1,18 @@
+sms-server: a Super Mario Sunshine (PC) dedicated server
+https://github.com/chasem-dev/sms-server
+
+1. Put your Super Mario Sunshine (USA, GMSE01) disc image in this folder
+   (.iso, .gcm or .ciso).
+2. Start sms-server (Linux: ./sms-server, Windows: sms-server.exe).
+   The first start writes server.ini, with every setting explained:
+   the server's name, port (UDP 24002), whether it is in the launcher's
+   public list, and more. Edit it and restart to change them.
+3. Players join from SMS Launcher's Multiplayer window: from the public list,
+   with the room code the server prints, or with this computer's address.
+
+Game modes are mods: unzip one into the mods folder (mods/squid-race/ for the
+Squid Race) and restart. Players need nothing but the game.
+
+Ctrl+C stops the server.
+
+Linux needs: libsdl2-2.0-0 libegl1 libssl3 (Debian, Ubuntu), glibc 2.34+.

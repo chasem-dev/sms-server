@@ -1,0 +1,10 @@
+# The parts of the server that need no game: cmake -S tests -B build/tests && cmake --build build/tests && build/tests/sms_server_tests
+cmake_minimum_required(VERSION 3.16)
+project(sms_server_tests CXX)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+add_executable(sms_server_tests tests.cpp ../src/json.cpp ../src/config.cpp ../src/packets.cpp ../src/udp.cpp)
+target_include_directories(sms_server_tests PRIVATE ../src)
+if(WIN32)
+  target_link_libraries(sms_server_tests PRIVATE ws2_32 iphlpapi)
+endif()

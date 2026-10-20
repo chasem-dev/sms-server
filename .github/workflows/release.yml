@@ -1,0 +1,121 @@
+name: Release
+# Servers for the games SMS Launcher ships, so a server always matches what
+# players run:
+#   - beta: the game in the launcher's beta (its "beta" release names the game
+#     commit), released here as the rolling "beta" pre-release whenever that
+#     game or this repository's main changes;
+#   - stable: the game the launcher pins (src/game-release.json), released as
+#     v<game version> once per game version.
+# Checked every hour; Run workflow builds one channel now. A game from before
+# sms-pc-port could build servers (no SMS_SERVER_DIR) is skipped.
+on:
+  schedule:
+    - cron: '23 * * * *'
+  workflow_dispatch:
+    inputs:
+      channel:
+        type: choice
+        options: [beta, stable]
+        default: beta
+permissions:
+  contents: write
+concurrency:
+  group: release
+  cancel-in-progress: false
+env:
+  LAUNCHER: chasem-dev/sms-launcher
+  GAME: chasem-dev/sms-pc-port
+jobs:
+  resolve:
+    runs-on: ubuntu-24.04
+    outputs:
+      builds: ${{ steps.which.outputs.builds }}
+    steps:
+      - id: which
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CHANNEL: ${{ inputs.channel }}
+        run: |
+          set -euo pipefail
+          builds='[]'
+          channels=${CHANNEL:-beta stable}
+          for channel in $channels; do
+            if [[ $channel == stable ]]; then
+              pin=$(gh api "repos/$LAUNCHER/contents/src/game-release.json" --jq .content | base64 -d)
+              game=$(jq -r .commit <<<"$pin"); version=$(jq -r .version <<<"$pin"); tag="v$version"
+            else
+              game=$(gh release view beta -R "$LAUNCHER" --json body --jq .body | sed -n 's/.*<!-- beta launcher=[0-9a-f]* game=\([0-9a-f]*\) -->.*/\1/p')
+              version="$(date -u +%Y.%m.%d)-beta.${game:0:7}"; tag=beta
+            fi
+            [[ -n "$game" ]] || { echo "::warning::no $channel game found"; continue; }
+            if ! gh api "repos/$GAME/contents/CMakeLists.txt?ref=$game" --jq .content | base64 -d | grep -q SMS_SERVER_DIR; then
+              echo "::notice::the $channel game ${game:0:7} can't build a server yet (no SMS_SERVER_DIR)"; continue
+            fi
+            body=$(gh release view "$tag" -R "$GITHUB_REPOSITORY" --json body --jq .body 2>/dev/null || true)
+            if [[ $channel == stable && -n "$body" && -z "$CHANNEL" ]]; then
+              echo "::notice::$tag is released already"; continue
+            fi
+            if [[ $channel == beta && -z "$CHANNEL" ]] && grep -qF "<!-- game=$game server=$GITHUB_SHA -->" <<<"$body"; then
+              echo "::notice::beta is up to date (game ${game:0:7}, server ${GITHUB_SHA:0:7})"; continue
+            fi
+            echo "$channel: game $game, version $version, release $tag"
+            builds=$(jq -c --arg c "$channel" --arg g "$game" --arg v "$version" --arg t "$tag" '. + [{channel: $c, game: $g, version: $v, tag: $t}]' <<<"$builds")
+          done
+          echo "builds=$builds" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: resolve
+    if: needs.resolve.outputs.builds != '[]'
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.resolve.outputs.builds) }}
+    uses: ./.github/workflows/build.yml
+    with:
+      game: ${{ matrix.game }}
+      game_version: ${{ matrix.version }}
+      suffix: -${{ matrix.channel }}
+
+  publish:
+    needs: [resolve, build]
+    if: needs.resolve.outputs.builds != '[]'
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.resolve.outputs.builds) }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: sms-server-*-${{ matrix.channel }}
+          merge-multiple: true
+          path: out
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CHANNEL: ${{ matrix.channel }}
+          TAG: ${{ matrix.tag }}
+          VERSION: ${{ matrix.version }}
+          GAME_COMMIT: ${{ matrix.game }}
+        run: |
+          set -euo pipefail
+          ls -l out
+          if [[ $CHANNEL == beta ]]; then
+            title="Beta: game $VERSION"
+            what="the game in SMS Launcher's beta"
+          else
+            title="sms-server $VERSION"
+            what="SMS Launcher's game $VERSION"
+          fi
+          notes="Dedicated server for $what (sms-pc-port ${GAME_COMMIT:0:7}), from sms-server ${GITHUB_SHA:0:7}.
+
+          Unzip it, put your Super Mario Sunshine (USA) disc image next to \`sms-server\`, and start it: it writes \`server.ini\` with every setting explained. See the [README](https://github.com/$GITHUB_REPOSITORY#readme).
+
+          Players need the same game version (or, with \`versions = drift\`, the same multiplayer protocol): $what.
+
+          <!-- game=$GAME_COMMIT server=$GITHUB_SHA -->"
+          notes=$(sed 's/^          //' <<<"$notes")
+          gh release delete "$TAG" -R "$GITHUB_REPOSITORY" --cleanup-tag -y 2>/dev/null || true
+          flags=()
+          [[ $CHANNEL == beta ]] && flags+=(--prerelease) || flags+=(--latest)
+          gh release create "$TAG" -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$title" --notes "$notes" "${flags[@]}" out/*.zip

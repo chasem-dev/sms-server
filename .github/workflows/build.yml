@@ -1,0 +1,102 @@
+name: Build
+# The server for Linux (x86-64, built on Ubuntu 22.04 so it runs on 22.04,
+# Debian 12, RHEL 9 and newer) and Windows (x86-64, MSYS2), with the unit
+# tests; each start is checked and zipped as it is released. release.yml calls
+# this with the game commit and version of a launcher channel.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      game:
+        description: sms-pc-port commit to build ('' = the port submodule's)
+        type: string
+        default: ''
+      game_version:
+        description: The game's version, as the launcher names it
+        type: string
+        default: ''
+      suffix:
+        description: Added to the artifacts' names (one run builds several)
+        type: string
+        default: ''
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'workflow_call' && inputs.suffix || github.ref }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+jobs:
+  tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unit tests
+        run: |
+          cmake -S tests -B build/tests -DCMAKE_CXX_FLAGS="-Wall -Wextra -Werror"
+          cmake --build build/tests
+          build/tests/sms_server_tests
+
+  server:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x64
+            os: ubuntu-24.04
+            container: ubuntu:22.04
+            shell: bash
+            exe: port/build/linux-64-server/sms-server
+          - name: windows-x64
+            os: windows-2025
+            container: ''
+            shell: msys2 {0}
+            exe: port/build/windows-64-server/sms-server.exe
+    runs-on: ${{ matrix.os }}
+    container: ${{ matrix.container }}
+    timeout-minutes: 120
+    name: ${{ matrix.name }}
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}
+    steps:
+      - name: Install Linux tools
+        if: runner.os == 'Linux'
+        run: |
+          export DEBIAN_FRONTEND=noninteractive
+          for n in 1 2 3; do apt-get update && break; sleep 10; done
+          apt-get install -y --no-install-recommends git ca-certificates cmake make python3 patch binutils g++ \
+            libsdl2-dev libegl-dev libgl-dev libssl-dev xz-utils zip
+          git config --global --add safe.directory '*'
+      - uses: msys2/setup-msys2@v2
+        if: runner.os == 'Windows'
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            git patch zip mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-python mingw-w64-x86_64-SDL2
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Check out the game at ${{ inputs.game }}
+        if: inputs.game != ''
+        run: |
+          git -C port fetch origin "${{ inputs.game }}"
+          git -C port checkout --detach FETCH_HEAD
+          git -C port submodule update --init decomp sdk
+          git -C port log --oneline -1
+      - name: Build
+        env:
+          SMS_GAME_VERSION: ${{ inputs.game_version }}
+        run: ./build.sh
+      - name: Check it starts
+        run: tools/check_start.sh "${{ matrix.exe }}"
+      - name: Package
+        run: tools/package.sh "sms-server-${{ inputs.game_version || 'dev' }}-${{ matrix.name }}.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sms-server-${{ matrix.name }}${{ inputs.suffix }}
+          path: sms-server-*.zip
+          retention-days: 14

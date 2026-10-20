@@ -1,0 +1,3 @@
+[submodule "port"]
+	path = port
+	url = https://github.com/chasem-dev/sms-pc-port.git
