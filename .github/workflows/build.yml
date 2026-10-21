@@ -84,8 +84,10 @@ jobs:
         if: inputs.game != ''
         run: |
           git -C port fetch origin "${{ inputs.game }}"
-          git -C port checkout --detach FETCH_HEAD
-          git -C port submodule update --init decomp sdk
+          # --force: on Windows the pinned checkout can look changed (line
+          # endings), and a plain checkout then refuses to move to the game
+          git -C port checkout --force --detach FETCH_HEAD
+          git -C port submodule update --init --force decomp sdk
           git -C port log --oneline -1
       - name: Build
         env:
