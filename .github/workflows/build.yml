@@ -24,8 +24,11 @@ on:
         default: ''
 permissions:
   contents: read
+# Called from release.yml, github.workflow, event_name and run_id are the
+# caller's, so the channel's suffix keeps the beta and stable builds of one
+# run apart (one group cancelled the other, and stable never released).
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name == 'workflow_call' && inputs.suffix || github.ref }}-${{ github.event.pull_request.number || github.run_id }}
+  group: ${{ github.workflow }}-${{ inputs.suffix || github.ref }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
 jobs:
   tests:
