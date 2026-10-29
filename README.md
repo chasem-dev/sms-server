@@ -7,12 +7,9 @@ It is the game itself, built without a window: it draws nothing, plays no sound,
 
 ## Running a server
 
-1. Download the server for your system from [Releases](../../releases):
-   - **beta** matches the game in SMS Launcher's beta, and is rebuilt when that changes;
-   - **v&lt;version&gt;** (the latest release) matches the launcher's regular game.
-
-   Players need the same game as the server (see [Versions](#versions)), so pick the one your players run.
-2. Unzip it, and put your Super Mario Sunshine (USA, GMSE01) disc image next to `sms-server`: `.iso`, `.gcm` or Dolphin `.ciso`.
+1. [Build it](#building-it) for your system. The server contains the compiled game, so no prebuilt servers are published.
+   Players need the same game as the server (see [Versions](#versions)), so build the one your players run.
+2. Put your Super Mario Sunshine (USA, GMSE01) disc image next to `sms-server` (or unzip `tools/package.sh`'s zip first): `.iso`, `.gcm` or Dolphin `.ciso`.
 3. Start it: `./sms-server` on Linux, `sms-server.exe` on Windows.
    The first start writes [`server.ini`](#serverini) with every setting explained; edit it and restart to change them.
 
@@ -35,7 +32,7 @@ sudo apt install libsdl2-2.0-0 libegl1 libssl3     # Debian, Ubuntu
 sudo dnf install SDL2 libglvnd-egl openssl-libs     # Fedora, RHEL
 ```
 
-**Windows** needs 64-bit Windows; the DLLs it needs are in the zip.
+**Windows** needs 64-bit Windows; `tools/package.sh` puts the DLLs it needs in the zip.
 
 ### Game modes
 
@@ -59,7 +56,13 @@ Without it, players still join with the code or from the list: most connect dire
 
 A player's game must be the server's build, or, with `versions = drift` (the default), any build of the same multiplayer protocol with the same Super Mario Eclipse setting.
 `min_version` and `min_launcher` turn away games and launchers older than those you name.
-The server's release names its game: `beta` follows SMS Launcher's beta, and `v2026.10.18.1` is the launcher's game 2026.10.18.1.
+To build the game your players run, check out the port at its commit before `./build.sh`: the `commit` in SMS Launcher's [`src/game-release.json`](https://github.com/chasem-dev/sms-launcher/blob/main/src/game-release.json) for its regular game, or the `game=` commit in the notes of its [beta release](https://github.com/chasem-dev/sms-launcher/releases/tag/beta) for its beta:
+
+```sh
+git -C port fetch origin <commit> && git -C port checkout --detach FETCH_HEAD
+git -C port submodule update --init --force decomp sdk
+SMS_GAME_VERSION=<version> ./build.sh
+```
 
 ### Running it as a service (Linux)
 
@@ -116,7 +119,7 @@ cd sms-server
 
 It builds the game ([`port/`](https://github.com/chasem-dev/sms-pc-port), a submodule) with this repository's sources added, so the game's [build prerequisites](https://github.com/chasem-dev/sms-pc-port/blob/main/BUILD.md) apply, plus OpenSSL's headers on Linux (`libssl-dev`).
 On Windows, build in an MSYS2 MINGW64 shell.
-`tools/package.sh sms-server.zip` makes the zip the releases have.
+`tools/package.sh sms-server.zip` zips it with what it needs to run elsewhere (on Windows, its DLLs). Keep the build to yourself: it contains the game.
 The unit tests need no game: `cmake -S tests -B build/tests && cmake --build build/tests && build/tests/sms_server_tests`.
 
 [docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md) explains what the server does and how the pieces fit.

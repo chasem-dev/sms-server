@@ -1,8 +1,8 @@
 name: Build
 # The server for Linux (x86-64, built on Ubuntu 22.04 so it runs on 22.04,
 # Debian 12, RHEL 9 and newer) and Windows (x86-64, MSYS2), with the unit
-# tests; each start is checked and zipped as it is released. release.yml calls
-# this with the game commit and version of a launcher channel.
+# tests; each start and its zip are checked. Nothing is uploaded or released:
+# the server contains the compiled game, so hosts build their own (README).
 on:
   push:
     branches: [main]
@@ -100,8 +100,3 @@ jobs:
         run: tools/check_start.sh "${{ matrix.exe }}"
       - name: Package
         run: tools/package.sh "sms-server-${{ inputs.game_version || 'dev' }}-${{ matrix.name }}.zip"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: sms-server-${{ matrix.name }}${{ inputs.suffix }}
-          path: sms-server-*.zip
-          retention-days: 14
